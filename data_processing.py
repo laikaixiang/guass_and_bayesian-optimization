@@ -24,7 +24,12 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
 
     # 1. 数据读取与预处理
     def load_and_preprocess_data(file_path):
-        """加载并预处理光谱数据"""
+        """
+        加载并预处理光谱数据
+        wavelengths：光的波长
+        sample_data：原本的强度数据
+        grouped_data：分组（4个为一组）的数据
+        """
         data = pd.read_csv(file_path, index_col=0)
         wavelengths = data.columns.astype(int)
         sample_data = data.values
@@ -175,7 +180,7 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
 
 # 使用示例
 if __name__ == "__main__":
-    results = analyze_spectral_uniformity('第二轮的数据-PL.csv')
+    results = analyze_spectral_uniformity('第二轮的数据-PL(统一前标).csv')
 
     # 打印关键结果
     print(f"\n分析完成，平均均匀性分数: {results['avg_uniformity']:.3f}")
