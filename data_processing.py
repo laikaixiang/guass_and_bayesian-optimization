@@ -37,19 +37,19 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
         return wavelengths, sample_data, grouped_data
 
     # 2. 离群值检测与处理
-    def detect_and_clean_outliers(grouped_data):
+    def detect_and_clean_outliers(grouped_data: np.ndarray):
         """检测并处理离群值"""
 
         def process_group(group):
-            median = np.median(group, axis=0)
-            q1 = np.percentile(group, 25, axis=0)
-            q3 = np.percentile(group, 75, axis=0)
+            median = np.median(group, axis=0) # 中位数
+            q1 = np.percentile(group, 25, axis=0) # 25%位数
+            q3 = np.percentile(group, 75, axis=0) # 75%位数
             iqr = q3 - q1
 
             lower_bound = q1 - 1.5 * iqr
             upper_bound = q3 + 1.5 * iqr
 
-            cleaned_group = group.copy()
+            cleaned_group = group.copy() # 深拷贝
             for i in range(group.shape[0]):
                 outlier_mask = (group[i] < lower_bound) | (group[i] > upper_bound)
                 cleaned_group[i, outlier_mask] = median[outlier_mask]
@@ -66,8 +66,10 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
 
         # 计算每组均匀性
         def group_uniformity(group):
-            std_dev = np.std(group, axis=0)
-            mean_val = np.mean(group, axis=0)
+            # 我们用变异系数来评价四个点的离散程度，然后通过一个组的变异系数来确定每一条光谱线的平均异变系数
+            # 这是为了评价这个片子的均匀性，越均匀=>离散程度越低
+            std_dev = np.std(group, axis=0) # 计算每一列（4个）的标准差
+            mean_val = np.mean(group, axis=0) # 计算每一列的均值
             cv = np.where(mean_val != 0, std_dev / mean_val, 0)
             return 1 - np.mean(cv)
 
@@ -98,7 +100,7 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
             plt.plot(wavelengths, original_data[i], alpha=0.5, label=f'Original {i + 1}')
         for i in range(4):
             plt.plot(wavelengths, cleaned_data[i], '--', alpha=0.8, label=f'Cleaned {i + 1}')
-        plt.title('Original vs Cleaned Spectra (First Group)')
+        plt.title('Original vs Cleaned Spectra (Example: First Group)')
         plt.xlabel('Wavelength (nm)')
         plt.ylabel('Intensity')
         plt.legend()
@@ -106,9 +108,14 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
 
         # 图2: 均匀性指标分布
         plt.subplot(2, 2, 2)
-        plt.bar(range(1, len(metrics['uniformity_scores']) + 1), metrics['uniformity_scores'])
+        # 设置颜色：>=0.7 为可取（蓝绿色），<0.7 为不可取（橙红色）
+        colors = ['#3498db' if score >= 0.7 else '#e74c3c' for score in metrics['uniformity_scores']]
+        plt.bar(range(1, len(metrics['uniformity_scores']) + 1), metrics['uniformity_scores'], color=colors)
         plt.axhline(y=metrics['avg_uniformity'], color='r', linestyle='--',
                     label=f'Average: {metrics["avg_uniformity"]:.3f}')
+        plt.axhline(y=0.7, color='gray', linestyle=':', alpha=0.5)
+        plt.axhline(y=1.0, color='gray', linestyle=':', alpha=0.5)
+        plt.axhspan(0.7, 1.0, alpha=0.1, hatch='//')
         plt.title('Uniformity Index for Each Sample Group')
         plt.xlabel('Sample Group')
         plt.ylabel('Uniformity Index (0-1)')
@@ -120,12 +127,12 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
         plt.subplot(2, 2, 3)
         cleaned_groups = np.array(np.split(cleaned_data, len(cleaned_data) // 4))
         representative_spectra = np.median(cleaned_groups, axis=1)
-        for i, spec in enumerate(representative_spectra[:5]):
+        for i, spec in enumerate(representative_spectra[:]):
             plt.plot(wavelengths, spec, label=f'Group {i + 1}')
         plt.title('Representative Spectra for Sample Groups')
         plt.xlabel('Wavelength (nm)')
         plt.ylabel('Intensity')
-        plt.legend()
+        # plt.legend()
         plt.grid(True)
 
         # 图4: 波长变异系数
@@ -180,7 +187,7 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
 
 # 使用示例
 if __name__ == "__main__":
-    results = analyze_spectral_uniformity('第二轮的数据-PL(统一前标).csv')
+    results = analyze_spectral_uniformity('第一轮的数据-PL(统一前标).csv')
 
     # 打印关键结果
     print(f"\n分析完成，平均均匀性分数: {results['avg_uniformity']:.3f}")
