@@ -96,11 +96,28 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
 
         # 图1: 原始数据与处理后数据对比(第一组)
         plt.subplot(2, 2, 1)
+        # 原始数据（第一组）
         for i in range(4):
-            plt.plot(wavelengths, original_data[i], alpha=0.5, label=f'Original {i + 1}')
-        for i in range(4):
-            plt.plot(wavelengths, cleaned_data[i], '--', alpha=0.8, label=f'Cleaned {i + 1}')
-        plt.title('Original vs Cleaned Spectra (Example: First Group)')
+            plt.plot(wavelengths, original_data[i], alpha=0.3, label=f'Original {i + 1}' if i == 0 else "")
+        # 计算均值和标准差
+        mean_original = np.mean(original_data[:4], axis=0)
+        std_original = np.std(original_data[:4], axis=0)
+        plt.plot(wavelengths, mean_original, 'b-', label='Original Mean')
+        plt.fill_between(wavelengths,
+                         mean_original - std_original,
+                         mean_original + std_original,
+                         color='blue', alpha=0.1, label='±1 Std Dev')
+
+        # 清洗后数据（第一组）
+        mean_cleaned = np.mean(cleaned_data[:4], axis=0)
+        std_cleaned = np.std(cleaned_data[:4], axis=0)
+        plt.plot(wavelengths, mean_cleaned, 'r--', label='Cleaned Mean')
+        plt.fill_between(wavelengths,
+                         mean_cleaned - std_cleaned,
+                         mean_cleaned + std_cleaned,
+                         color='red', alpha=0.1, label='±1 Std Dev')
+
+        plt.title('Original vs Cleaned Spectra with Error Bands (Std Dev)')
         plt.xlabel('Wavelength (nm)')
         plt.ylabel('Intensity')
         plt.legend()
