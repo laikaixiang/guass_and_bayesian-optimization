@@ -96,32 +96,30 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
 
         # 图1: 原始数据与处理后数据对比(第一组)
         plt.subplot(2, 2, 1)
-        # 原始数据（第一组）
-        for i in range(4):
-            plt.plot(wavelengths, original_data[i], alpha=0.3, label=f'Original {i + 1}' if i == 0 else "")
-        # 计算均值和标准差
-        mean_original = np.mean(original_data[:4], axis=0)
-        std_original = np.std(original_data[:4], axis=0)
-        plt.plot(wavelengths, mean_original, 'b-', label='Original Mean')
-        plt.fill_between(wavelengths,
-                         mean_original - std_original,
-                         mean_original + std_original,
-                         color='blue', alpha=0.1, label='±1 Std Dev')
+        # 原始数据 - 分位数填充
+        q1_original = np.percentile(original_data[:4], 25, axis=0)
+        q3_original = np.percentile(original_data[:4], 75, axis=0)
+        plt.fill_between(wavelengths, q1_original, q3_original,
+                         color='blue', alpha=0.15, label='Original IQR')
 
-        # 清洗后数据（第一组）
+        # 清洗数据 - 误差棒
         mean_cleaned = np.mean(cleaned_data[:4], axis=0)
         std_cleaned = np.std(cleaned_data[:4], axis=0)
-        plt.plot(wavelengths, mean_cleaned, 'r--', label='Cleaned Mean')
-        plt.fill_between(wavelengths,
-                         mean_cleaned - std_cleaned,
-                         mean_cleaned + std_cleaned,
-                         color='red', alpha=0.1, label='±1 Std Dev')
+        plt.errorbar(wavelengths[::10], mean_cleaned[::10], yerr=std_cleaned[::10],
+                     fmt='ro', markersize=4, capsize=3, label='Cleaned Mean±Std')
 
-        plt.title('Original vs Cleaned Spectra with Error Bands (Std Dev)')
+        # 叠加中位数和均值线（修正此处错误）
+        plt.plot(wavelengths, np.median(original_data[:4], axis=0), 'b-',
+                 linewidth=1, alpha=0.7, label='Original Median')  # 正确调用np.median
+        plt.plot(wavelengths, mean_cleaned, 'r--',
+                 linewidth=1, label='Cleaned Mean')  # 使用linewidth代替lw
+
+        plt.title('Hybrid Visualization: IQR vs Error Bars')
         plt.xlabel('Wavelength (nm)')
         plt.ylabel('Intensity')
-        plt.legend()
-        plt.grid(True)
+        plt.legend(loc='upper right')
+        plt.grid(True, alpha=0.3)
+
 
         # 图2: 均匀性指标分布
         plt.subplot(2, 2, 2)
