@@ -11,7 +11,7 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
 
     参数:
         file_path (str): CSV文件路径
-        piece_each_process (int): 一个工艺制作了多少个片子
+        piece_each_process (int): 一个工艺制作了多少个片子:1/2(不会有人要做更多了吧TAT)
         show_plots (bool): 是否显示分析图表(默认True)
         save_results (bool): 是否保存结果文件(默认True)
 
@@ -110,21 +110,34 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
         length_of_ws = len(data_processes[0][0])
         for process in range(len(data_processes)):
             # 如果缺数据，标0，那就去掉
-            if data_processes[process][0][0] == 0:
-                data_processes[process] = data_processes[process][1].reshape((1, length_of_ws))
-                delete_index.append(process * 2)
-            elif data_processes[process][1][0]==0:
-                data_processes[process] = data_processes[process][0].reshape((1, length_of_ws))
-                delete_index.append(process * 2 + 1)
-            # 不够均匀的也删掉
-            elif uniformity_scores[process * 2] < 0.7:
-                # data_processes[process][0]==0
-                data_processes[process] = data_processes[process][1].reshape((1, length_of_ws))
-                delete_index.append(process * 2)
-            elif uniformity_scores[process * 2 + 1] < 0.7:
-                # data_processes[process][1]==0
-                data_processes[process] = data_processes[process][0].reshape((1, length_of_ws))
-                delete_index.append(process * 2 + 1)
+            if piece_each_process == 2:
+                # 只有两个片子的用到这个：
+                if data_processes[process][0][0] == 0:
+                    data_processes[process] = data_processes[process][1].reshape((1, length_of_ws))
+                    delete_index.append(process * 2)
+                elif data_processes[process][1][0]==0:
+                    data_processes[process] = data_processes[process][0].reshape((1, length_of_ws))
+                    delete_index.append(process * 2 + 1)
+                # 不够均匀的也删掉
+                elif uniformity_scores[process * 2] < 0.7:
+                    # data_processes[process][0]==0
+                    data_processes[process] = data_processes[process][1].reshape((1, length_of_ws))
+                    delete_index.append(process * 2)
+                elif uniformity_scores[process * 2 + 1] < 0.7:
+                    # data_processes[process][1]==0
+                    data_processes[process] = data_processes[process][0].reshape((1, length_of_ws))
+                    delete_index.append(process * 2 + 1)
+            else:
+                # 一个片子，如果不够均匀就直接删去
+                if uniformity_scores[process] < 0.7:
+                    delete_index.append(process)
+
+        if piece_each_process == 1:
+            # 只做了一个片子的时候要单独删
+            data_processes = np.delete(np.array(data_processes), delete_index,axis=0)
+
+
+        # 剩下的做一个片子和两个片子是一样的
         uniformity_scores_cleaned = np.delete(uniformity_scores, delete_index)
         index_processes = np.delete(index_processes, delete_index)
         return {
@@ -203,7 +216,7 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
         plt.xlabel('Sample Group')
         plt.ylabel('Uniformity Index (0-1)')
         plt.ylim(0, 1)
-        plt.legend()
+        plt.legend(loc='upper right')
         plt.grid(True)
 
         # 图4: 所有光谱集合
@@ -354,7 +367,7 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
 
 # 使用示例
 if __name__ == "__main__":
-    results = analyze_spectral_uniformity('data/第一轮的数据-PL(统一前标).csv',piece_each_process=2)
+    results = analyze_spectral_uniformity('data/第二轮的数据-PL(统一前标).csv',piece_each_process=1)
 
     # 打印关键结果
     print(f"\n分析完成，平均均匀性分数: {results['avg_uniformity']:.3f}")
