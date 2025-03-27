@@ -1,15 +1,18 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import warnings
 from scipy import stats
 
+warnings.filterwarnings("ignore")
 
-def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
+def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=True, save_results=True):
     """
     分析光谱数据均匀性并识别离群值的完整函数
 
     参数:
         file_path (str): CSV文件路径
+        piece_each_process (int): 一个工艺制作了多少个片子
         show_plots (bool): 是否显示分析图表(默认True)
         save_results (bool): 是否保存结果文件(默认True)
 
@@ -67,7 +70,9 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
 
     # 3. 均匀性评估
     def calculate_uniformity_metrics(cleaned_data, grouped_data_shape):
-        """计算均匀性指标"""
+        """计算均匀性指标
+            使用变异系数进行计算：计算四个光谱的离散程度
+        """
         # 重新分组处理后的数据
         cleaned_groups = np.array(np.split(cleaned_data, len(cleaned_data) // 4))
 
@@ -96,8 +101,41 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
             'cv_by_wavelength': cv_by_wavelength
         }
 
-    # 4. 可视化
-    def create_visualizations(wavelengths, original_data, cleaned_data, metrics):
+    # 4、工艺参数估算
+    def evaluate_process_quality(metrics):
+        uniformity_scores = metrics["uniformity_scores"]
+        data_processes = np.split(metrics['representative_spectrum'],
+                                  len(metrics['representative_spectrum']) // piece_each_process) # 按照一个工艺两个片子来分数据
+        index_processes = np.array([i//piece_each_process for i in range(len(uniformity_scores))])
+        delete_index = [] # 指定删除的节点
+        length_of_ws = len(data_processes[0][0])
+        for process in range(len(data_processes)):
+            # 如果缺数据，标0，那就去掉
+            if data_processes[process][0][0] == 0:
+                data_processes[process] = data_processes[process][1].reshape((1, length_of_ws))
+                delete_index.append(process * 2)
+            elif data_processes[process][1][0]==0:
+                data_processes[process] = data_processes[process][0].reshape((1, length_of_ws))
+                delete_index.append(process * 2 + 1)
+            # 不够均匀的也删掉
+            elif uniformity_scores[process * 2] < 0.7:
+                # data_processes[process][0]==0
+                data_processes[process] = data_processes[process][1].reshape((1, length_of_ws))
+                delete_index.append(process * 2)
+            elif uniformity_scores[process * 2 + 1] < 0.7:
+                # data_processes[process][1]==0
+                data_processes[process] = data_processes[process][0].reshape((1, length_of_ws))
+                delete_index.append(process * 2 + 1)
+        uniformity_scores_cleaned = np.delete(uniformity_scores, delete_index)
+        index_processes = np.delete(index_processes, delete_index)
+        return {
+            'processes_data': data_processes, # detype: list
+            'cleaned_uniformity': np.array(uniformity_scores_cleaned),
+            'index_processes': np.array(index_processes) # 指示，和cleaned_uniformity配合着用，可以求出每个片子的平均均匀度
+        }
+
+    # 5. 可视化
+    def create_visualizations(wavelengths, original_data, cleaned_data, metrics, processes):
         """创建分析图表"""
         plt.figure(figsize=(18, 12))
         # 调整子图位置
@@ -151,7 +189,12 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
         plt.subplot(2, 2, 3)
         # 设置颜色：>=0.7 为可取（蓝绿色），<0.7 为不可取（橙红色）
         colors = ['#3498db' if score >= 0.7 else '#e74c3c' for score in metrics['uniformity_scores']]
-        plt.bar(range(1, len(metrics['uniformity_scores']) + 1), metrics['uniformity_scores'], color=colors)
+        plt.bar(range(1, len(metrics['uniformity_scores']) + 1),
+                [metrics['uniformity_scores'][idx] if metrics['uniformity_scores'][idx]!=1
+                 else 0
+                for idx in range(len(metrics['uniformity_scores']))
+                ],
+                color=colors)
         plt.axhline(y=metrics['avg_uniformity'], color='r', linestyle='--',
                     label=f'Average: {metrics["avg_uniformity"]:.3f}')
         plt.axhline(y=0.7, color='gray', linestyle=':', alpha=0.5)
@@ -166,15 +209,36 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
 
         # 图4: 所有光谱集合
         plt.subplot(2, 2, 4)
-        cleaned_groups = np.array(np.split(cleaned_data, len(cleaned_data) // 4))
-        representative_spectra = np.median(cleaned_groups, axis=1)
-        for i, spec in enumerate(representative_spectra[:]):
-            plt.plot(wavelengths, spec, label=f'Group {i + 1}')
-        plt.title('Representative Spectra for Sample Groups')
-        plt.xlabel('Wavelength (nm)')
-        plt.ylabel('Intensity')
-        # plt.legend()
-        plt.grid(True)
+        peak_intensity = [] # 每种制作方法的强度最大值列表
+        processes_data = processes["processes_data"]
+        index_process = processes["index_processes"]
+        uniformity_process = processes["cleaned_uniformity"]
+        avg_cleaned_uniformity = [] # 每种制作方法的均匀性均值
+        for process in range(len(processes_data)):
+            peak_intensity.append(np.max(processes_data[process]))
+            avg_cleaned_uniformity.append(
+                np.mean(uniformity_process[np.where(index_process == process)]))
+        x = np.arange(len(peak_intensity))
+
+        # # 双y轴棒图
+        ax1 = plt.gca()
+        ax1.bar(x - 0.2, avg_cleaned_uniformity,
+                width=0.4, color='#3498db', label='Uniformity')
+        ax1.set_ylabel('Average Uniformity', color='#3498db')
+        ax1.tick_params(axis='y', colors='#3498db')
+        ax1.set_ylim(0, 1)
+        ax1.axhline(0.7, color='#3498db', linestyle=':', alpha=0.5)
+
+        ax2 = ax1.twinx()
+        ax2.bar(x + 0.2, peak_intensity,
+                width=0.4, color='#e67e22', label='Intensity')
+        ax2.set_ylabel('Median Intensity', color='#e67e22')
+        ax2.tick_params(axis='y', colors='#e67e22')
+
+        plt.title('Process Performance Comparison\n(Left: Uniformity, Right: Intensity)')
+        plt.xticks(x, x+1, rotation=45)
+        ax1.legend(loc='upper left')
+        ax2.legend(loc='upper right')
 
 
         # plt.tight_layout()
@@ -189,14 +253,15 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
     wavelengths, original_data, grouped_data, index_data = load_and_preprocess_data(file_path)
     cleaned_data = detect_and_clean_outliers(grouped_data)
     metrics = calculate_uniformity_metrics(cleaned_data, grouped_data.shape)
+    processes = evaluate_process_quality(metrics)
 
     if show_plots:
-        create_visualizations(wavelengths, original_data, cleaned_data, metrics)
+        create_visualizations(wavelengths, original_data, cleaned_data, metrics, processes)
 
     # 保存结果
     if save_results:
         # 保存所有光谱
-        result_df = pd.DataFrame(metrics['representative_spectrum'].reshape((47,101)),
+        result_df = pd.DataFrame(metrics['representative_spectrum'],
                                  columns=wavelengths,
                                  index=index_data)
         result_df.to_csv('representative_spectrum.csv')
@@ -215,17 +280,22 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
         'representative_spectrum': metrics['representative_spectrum'],
         'uniformity_scores': metrics['uniformity_scores'],
         'avg_uniformity': metrics['avg_uniformity'],
-        'cv_by_wavelength': metrics['cv_by_wavelength']
+        'cv_by_wavelength': metrics['cv_by_wavelength'],
+        'processes_data': processes['processes_data'],  # detype: list
+        'cleaned_uniformity': processes['cleaned_uniformity'],
+        'index_processes': processes['index_processes']  # 指示，和cleaned_uniformity配合着用，可以求出每个片子的平均均匀度
     }
 
 
 # 使用示例
 if __name__ == "__main__":
-    results = analyze_spectral_uniformity('第一轮的数据-PL(统一前标).csv')
+    results = analyze_spectral_uniformity('第一轮的数据-PL(统一前标).csv',piece_each_process=2)
 
     # 打印关键结果
     print(f"\n分析完成，平均均匀性分数: {results['avg_uniformity']:.3f}")
+    result = np.array(results['uniformity_scores'])
+    filter = result[result != 1]
     print(
-        f"最佳均匀性组: {np.argmax(results['uniformity_scores']) + 1} (分数: {np.max(results['uniformity_scores']):.3f})")
+        f"最佳均匀性组: {np.argmax(results['uniformity_scores']) + 1} (分数: {filter.max():.3f})")
     print(
-        f"最差均匀性组: {np.argmin(results['uniformity_scores']) + 1} (分数: {np.min(results['uniformity_scores']):.3f})")
+        f"最差均匀性组: {np.argmin(results['uniformity_scores']) + 1} (分数: {filter.min():.3f})")
