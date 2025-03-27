@@ -196,4 +196,4 @@ def guassFitData(guass_number,
 if __name__ == "__main__":
     # guassFitData(2, '第一轮数据-PL-处理完成.csv', save_params_path="拟合参数try.csv")
     # guassFitData(2, "第二轮的数据-PL(修正后).csv", save_params_path="拟合参数第二轮.csv", save_and_view_training_path="image")
-    guassFitData(2, "第一轮的数据-PL.csv", save_params_path="拟合参数第二轮.csv", save_and_view_training_path="image")
+    guassFitData(2, "代表性光谱.csv", save_params_path="拟合参数第二轮.csv", save_and_view_training_path="image")

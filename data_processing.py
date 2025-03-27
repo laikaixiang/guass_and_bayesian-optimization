@@ -219,25 +219,88 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
                 np.mean(uniformity_process[np.where(index_process == process)]))
         x = np.arange(len(peak_intensity))
 
+        # 设置颜色映射（从红到绿表示综合质量越来越好）
+        avg_cleaned_uniformity = np.array(avg_cleaned_uniformity)
+        peak_intensity = np.array(peak_intensity)
+        # 数据预处理：过滤掉0.301的极端低值（可选）
+        mask = avg_cleaned_uniformity > 0.4  # 过滤掉极低强度点
+        filtered_uniformity = np.array(avg_cleaned_uniformity)[mask]
+        filtered_intensity = np.array(peak_intensity)[mask]
+
+        # 动态计算点大小范围（排除最低值）
+        min_size = 50  # 最小点大小
+        max_size = 500  # 最大点大小
+        sizes = np.interp(filtered_intensity,
+                          (np.min(filtered_intensity), np.max(filtered_intensity)),
+                          (min_size, max_size))
+
+        # 颜色映射（从红到绿）
+        quality_score = filtered_uniformity * filtered_intensity / np.max(filtered_intensity)
+        cmap = plt.cm.get_cmap('RdYlGn')
+
+        # 绘制散点图
+        sc = plt.scatter(
+            x=filtered_uniformity,
+            y=filtered_intensity,
+            c=quality_score,
+            cmap=cmap,
+            s=sizes,  # 使用动态计算的大小
+            alpha=0.8,
+            edgecolors='k',  # 黑色边框
+            linewidths=0.8,
+            zorder=3
+        )
+
+        # 坐标轴设置（对数坐标）
+        plt.yscale('log')
+        plt.xlim(0.3, 1.0)
+        plt.ylim(np.min(filtered_intensity) * 0.9, np.max(filtered_intensity) * 1.3)
+
+        # 参考线
+        plt.axvline(0.7, color='gray', linestyle=':', alpha=0.5)
+        # plt.axhline(10000, color='gray', linestyle=':', alpha=0.5)
+
+        # 颜色条
+        cbar = plt.colorbar(sc)
+        cbar.set_label('Quality Score\n(Uniformity × Normalized Intensity)',
+                       rotation=270, labelpad=20)
+
+        # 标注和标题
+        plt.title('Spectral Quality Analysis (Filtered)\n[Size ∝ Intensity]', pad=20, fontsize=14)
+        plt.xlabel('Average Uniformity Score (0-1)', fontsize=12)
+        plt.ylabel('Peak Intensity (log scale)', fontsize=12)
+
+        # 网格和样式优化
+        plt.grid(True, which='both', linestyle='--', alpha=0.3)
+        plt.gca().set_facecolor('#f8f8f8')
+
+        # 重点标注最高质量点
+        max_idx = np.argmax(quality_score)
+        plt.scatter(filtered_uniformity[max_idx], filtered_intensity[max_idx],
+                    s=max_size * 1.2, facecolors='none', edgecolors='gold',
+                    linewidths=2, label='Best Quality')
+        plt.legend(loc='upper left')
+
+
         # # 双y轴棒图
-        ax1 = plt.gca()
-        ax1.bar(x - 0.2, avg_cleaned_uniformity,
-                width=0.4, color='#3498db', label='Uniformity')
-        ax1.set_ylabel('Average Uniformity', color='#3498db')
-        ax1.tick_params(axis='y', colors='#3498db')
-        ax1.set_ylim(0, 1)
-        ax1.axhline(0.7, color='#3498db', linestyle=':', alpha=0.5)
-
-        ax2 = ax1.twinx()
-        ax2.bar(x + 0.2, peak_intensity,
-                width=0.4, color='#e67e22', label='Intensity')
-        ax2.set_ylabel('Median Intensity', color='#e67e22')
-        ax2.tick_params(axis='y', colors='#e67e22')
-
-        plt.title('Process Performance Comparison\n(Left: Uniformity, Right: Intensity)')
-        plt.xticks(x, x+1, rotation=45)
-        ax1.legend(loc='upper left')
-        ax2.legend(loc='upper right')
+        # ax1 = plt.gca()
+        # ax1.bar(x - 0.2, avg_cleaned_uniformity,
+        #         width=0.4, color='#3498db', label='Uniformity')
+        # ax1.set_ylabel('Average Uniformity', color='#3498db')
+        # ax1.tick_params(axis='y', colors='#3498db')
+        # ax1.set_ylim(0, 1)
+        # ax1.axhline(0.7, color='#3498db', linestyle=':', alpha=0.5)
+        #
+        # ax2 = ax1.twinx()
+        # ax2.bar(x + 0.2, peak_intensity,
+        #         width=0.4, color='#e67e22', label='Intensity')
+        # ax2.set_ylabel('Median Intensity', color='#e67e22')
+        # ax2.tick_params(axis='y', colors='#e67e22')
+        #
+        # plt.title('Process Performance Comparison\n(Left: Uniformity, Right: Intensity)')
+        # plt.xticks(x, x+1, rotation=45)
+        # ax1.legend(loc='upper left')
+        # ax2.legend(loc='upper right')
 
 
         # plt.tight_layout()
@@ -259,11 +322,14 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
 
     # 保存结果
     if save_results:
-        # 保存所有光谱
-        result_df = pd.DataFrame(metrics['representative_spectrum'],
+        # 保存所有已经筛除的光谱
+        flattened = np.concatenate([arr.reshape(-1) for arr in processes["processes_data"]])
+        len_wavelength = len(wavelengths)
+        representative_spectrum = flattened.reshape(len(flattened) // len_wavelength, len_wavelength)
+        result_df = pd.DataFrame(representative_spectrum,
                                  columns=wavelengths,
-                                 index=index_data)
-        result_df.to_csv('representative_spectrum.csv')
+                                 index=processes["index_processes"])
+        result_df.to_csv('代表性光谱.csv')
 
         # 保存均匀性分数
         uniformity_df = pd.DataFrame({
@@ -288,7 +354,7 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
 
 # 使用示例
 if __name__ == "__main__":
-    results = analyze_spectral_uniformity('第一轮的数据-PL(统一前标).csv',piece_each_process=2)
+    results = analyze_spectral_uniformity('data/第一轮的数据-PL(统一前标).csv',piece_each_process=2)
 
     # 打印关键结果
     print(f"\n分析完成，平均均匀性分数: {results['avg_uniformity']:.3f}")
