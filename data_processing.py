@@ -24,7 +24,7 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
     文件输出：
         representative_spectrum.csv: 全部组的代表性光谱数据
         spectral_analysis_result: 结果图（图一、图二为：以第一组数据为例的数据清洗示例；图三：所有组的均匀性分数
-        uniformity_scores
+        uniformity_scores: 均匀性评分
     """
 
     # 1. 数据读取与预处理
