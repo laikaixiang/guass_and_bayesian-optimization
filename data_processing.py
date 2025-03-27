@@ -20,6 +20,11 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
             - 'uniformity_scores': 每组均匀性分数
             - 'avg_uniformity': 平均均匀性
             - 'cv_by_wavelength': 各波长的变异系数
+
+    文件输出：
+        representative_spectrum.csv: 全部组的代表性光谱数据
+        spectral_analysis_result: 结果图（图一、图二为：以第一组数据为例的数据清洗示例；图三：所有组的均匀性分数
+        uniformity_scores
     """
 
     # 1. 数据读取与预处理
@@ -34,7 +39,9 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
         wavelengths = data.columns.astype(int)
         sample_data = data.values
         grouped_data = np.array(np.split(sample_data, len(sample_data) // 4))
-        return wavelengths, sample_data, grouped_data
+        index_data = np.array(data.index[i*4] for i in range(len(sample_data) // 4))
+        return wavelengths, sample_data, grouped_data, index_data
+
 
     # 2. 离群值检测与处理
     def detect_and_clean_outliers(grouped_data: np.ndarray):
@@ -73,11 +80,11 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
             cv = np.where(mean_val != 0, std_dev / mean_val, 0)
             return 1 - np.mean(cv)
 
-        uniformities = [group_uniformity(group) for group in cleaned_groups]
+        uniformities = [group_uniformity(group) for group in cleaned_groups] # cleaned gounp size:40*4*101
 
         # 计算代表性光谱(各组中位数的中位数)
         representative_spectra = np.median(cleaned_groups, axis=1)
-        final_representative = np.median(representative_spectra, axis=0)
+        # final_representative = np.median(representative_spectra, axis=0)
 
         # 计算各波长的变异系数
         cv_by_wavelength = np.std(cleaned_data, axis=0) / np.mean(cleaned_data, axis=0)
@@ -85,7 +92,7 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
         return {
             'uniformity_scores': uniformities,
             'avg_uniformity': np.mean(uniformities),
-            'representative_spectrum': final_representative,
+            'representative_spectrum': representative_spectra, # 每组中位数
             'cv_by_wavelength': cv_by_wavelength
         }
 
@@ -93,27 +100,46 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
     def create_visualizations(wavelengths, original_data, cleaned_data, metrics):
         """创建分析图表"""
         plt.figure(figsize=(18, 12))
+        # 调整子图位置
+        plt.subplots_adjust(
+            left=0.062,  # 左边距（默认0.125）
+            right=0.985,  # 右边距
+            bottom=0.07,  # 底边距（默认0.11）
+            top=0.959,  # 顶边距（默认0.88）
+            wspace=0.168,  # 水平间距（默认0.2）
+            hspace=0.252  # 垂直间距（默认0.2）
+        )
 
         # 图1: 原始数据与处理后数据对比(第一组)
         plt.subplot(2, 2, 1)
+        for i in range(4):
+            plt.plot(wavelengths, original_data[i], alpha=0.5, label=f'Original {i + 1}')
+        for i in range(4):
+            plt.plot(wavelengths, cleaned_data[i], '--', alpha=0.8, label=f'Cleaned {i + 1}')
+        plt.title('Original vs Cleaned Spectra (Example: First Group)')
+        plt.xlabel('Wavelength (nm)')
+        plt.ylabel('Intensity')
+        plt.legend()
+        plt.grid(True)
+
+
+        # 图2：展示误差（以图一为例)，25%和75%分位数
+        plt.subplot(2, 2, 2)
         # 原始数据 - 分位数填充
         q1_original = np.percentile(original_data[:4], 25, axis=0)
         q3_original = np.percentile(original_data[:4], 75, axis=0)
         plt.fill_between(wavelengths, q1_original, q3_original,
                          color='blue', alpha=0.15, label='Original IQR')
-
         # 清洗数据 - 误差棒
         mean_cleaned = np.mean(cleaned_data[:4], axis=0)
         std_cleaned = np.std(cleaned_data[:4], axis=0)
         plt.errorbar(wavelengths[::10], mean_cleaned[::10], yerr=std_cleaned[::10],
                      fmt='ro', markersize=4, capsize=3, label='Cleaned Mean±Std')
-
         # 叠加中位数和均值线（修正此处错误）
         plt.plot(wavelengths, np.median(original_data[:4], axis=0), 'b-',
                  linewidth=1, alpha=0.7, label='Original Median')  # 正确调用np.median
         plt.plot(wavelengths, mean_cleaned, 'r--',
-                 linewidth=1, label='Cleaned Mean')  # 使用linewidth代替lw
-
+                 linewidth=1, label='Cleaned Mean')
         plt.title('Hybrid Visualization: IQR vs Error Bars')
         plt.xlabel('Wavelength (nm)')
         plt.ylabel('Intensity')
@@ -121,8 +147,8 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
         plt.grid(True, alpha=0.3)
 
 
-        # 图2: 均匀性指标分布
-        plt.subplot(2, 2, 2)
+        # 图3: 均匀性指标分布
+        plt.subplot(2, 2, 3)
         # 设置颜色：>=0.7 为可取（蓝绿色），<0.7 为不可取（橙红色）
         colors = ['#3498db' if score >= 0.7 else '#e74c3c' for score in metrics['uniformity_scores']]
         plt.bar(range(1, len(metrics['uniformity_scores']) + 1), metrics['uniformity_scores'], color=colors)
@@ -138,8 +164,8 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
         plt.legend()
         plt.grid(True)
 
-        # 图3: 代表性光谱(前5组)
-        plt.subplot(2, 2, 3)
+        # 图4: 所有光谱集合
+        plt.subplot(2, 2, 4)
         cleaned_groups = np.array(np.split(cleaned_data, len(cleaned_data) // 4))
         representative_spectra = np.median(cleaned_groups, axis=1)
         for i, spec in enumerate(representative_spectra[:]):
@@ -150,24 +176,17 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
         # plt.legend()
         plt.grid(True)
 
-        # 图4: 波长变异系数
-        plt.subplot(2, 2, 4)
-        plt.plot(wavelengths, metrics['cv_by_wavelength'])
-        plt.title('Coefficient of Variation Across Wavelengths')
-        plt.xlabel('Wavelength (nm)')
-        plt.ylabel('Coefficient of Variation')
-        plt.grid(True)
 
-        plt.tight_layout()
+        # plt.tight_layout()
         if save_results:
-            plt.savefig('spectral_analysis_results.png', dpi=300)
+            plt.savefig('spectral_analysis_results.svg', dpi=300, format='svg')
         if show_plots:
             plt.show()
         else:
             plt.close()
 
     # 主执行流程
-    wavelengths, original_data, grouped_data = load_and_preprocess_data(file_path)
+    wavelengths, original_data, grouped_data, index_data = load_and_preprocess_data(file_path)
     cleaned_data = detect_and_clean_outliers(grouped_data)
     metrics = calculate_uniformity_metrics(cleaned_data, grouped_data.shape)
 
@@ -176,10 +195,10 @@ def analyze_spectral_uniformity(file_path, show_plots=True, save_results=True):
 
     # 保存结果
     if save_results:
-        # 保存代表性光谱
-        result_df = pd.DataFrame([metrics['representative_spectrum']],
+        # 保存所有光谱
+        result_df = pd.DataFrame(metrics['representative_spectrum'].reshape((47,101)),
                                  columns=wavelengths,
-                                 index=['Representative_Spectrum'])
+                                 index=index_data)
         result_df.to_csv('representative_spectrum.csv')
 
         # 保存均匀性分数
