@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import warnings
-from scipy import stats
 
 warnings.filterwarnings("ignore")
 
