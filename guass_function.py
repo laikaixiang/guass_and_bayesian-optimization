@@ -106,7 +106,7 @@ def guassFitData(guass_number,
         initial_params = np.zeros((3*guass_number))
         for i in range(guass_number): # 随机数调整
             initial_params[i * 3] = min(xdata)+(i)/guass_number*(max(xdata)-min(xdata))
-            initial_params[i * 3 + 1] = np.random.rand() * 200
+            initial_params[i * 3 + 1] = np.random.rand() * 50
             initial_params[i * 3 + 2] = np.random.rand() * 0.5 * max(y)
         return initial_params
 
@@ -122,8 +122,8 @@ def guassFitData(guass_number,
         lower_bounds = []
         upper_bounds = []
         for i in range(guass_number):
-            lower_bounds.extend([min(x), 1, 0])  # 均值, 标准差, 系数
-            upper_bounds.extend([max(x), 500, max(y)])
+            lower_bounds.extend([min(x), 0, 0])  # 均值, 标准差, 系数
+            upper_bounds.extend([max(x), 50, max(y)])
         return (lower_bounds, upper_bounds)
 
 
