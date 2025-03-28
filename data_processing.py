@@ -235,7 +235,7 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
         # 设置颜色映射（从红到绿表示综合质量越来越好）
         avg_cleaned_uniformity = np.array(avg_cleaned_uniformity)
         peak_intensity = np.array(peak_intensity)
-        # 数据预处理：过滤掉0.301的极端低值（可选）
+        
         mask = avg_cleaned_uniformity > 0.4  # 过滤掉极低强度点
         filtered_uniformity = np.array(avg_cleaned_uniformity)[mask]
         filtered_intensity = np.array(peak_intensity)[mask]
@@ -337,11 +337,12 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
     if save_results:
         # 保存所有已经筛除的光谱
         flattened = np.concatenate([arr.reshape(-1) for arr in processes["processes_data"]])
+        indexs = [p + 1 for p in processes["index_processes"]]
         len_wavelength = len(wavelengths)
         representative_spectrum = flattened.reshape(len(flattened) // len_wavelength, len_wavelength)
         result_df = pd.DataFrame(representative_spectrum,
                                  columns=wavelengths,
-                                 index=processes["index_processes"])
+                                 index=indexs)
         result_df.to_csv('代表性光谱.csv')
 
         # 保存均匀性分数
@@ -367,7 +368,7 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
 
 # 使用示例
 if __name__ == "__main__":
-    results = analyze_spectral_uniformity('data/第二轮的数据-PL(统一前标).csv',piece_each_process=1)
+    results = analyze_spectral_uniformity('data/第一轮的数据-PL(统一前标).csv',piece_each_process=2)
 
     # 打印关键结果
     print(f"\n分析完成，平均均匀性分数: {results['avg_uniformity']:.3f}")
