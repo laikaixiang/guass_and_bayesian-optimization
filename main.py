@@ -10,7 +10,7 @@ if __name__ == "__main__":
 
     # 输入文件位置
     spectrum_path_origin = 'data/第一轮的数据-PL(统一前标).csv' # 输入的光谱文件数据（原始）
-    process_data_path = "贝叶斯优化/数据备份/initial_data.xlsx" # 输入的工艺参数位置
+    process_data_path = "data/initial_data.xlsx" # 输入的工艺参数位置
 
     # 中间数据的存储位置
     spectrum_path_processed = "各片代表性光谱.csv" # 存各片光谱
