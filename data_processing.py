@@ -5,7 +5,11 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=True, save_results=True):
+def analyze_spectral_uniformity(file_path,
+                                piece_each_process: int,
+                                show_plots=True,
+                                save_results=True,
+                                save_path="各片代表性光谱"):
     """
     分析光谱数据均匀性并识别离群值的完整函数
 
@@ -112,21 +116,46 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
             # 如果缺数据，标0，那就去掉
             if piece_each_process == 2:
                 # 只有两个片子的用到这个：
-                if data_processes[process][0][0] == 0:
-                    data_processes[process] = data_processes[process][1].reshape((1, length_of_ws))
-                    delete_index.append(process * 2)
-                elif data_processes[process][1][0]==0:
-                    data_processes[process] = data_processes[process][0].reshape((1, length_of_ws))
-                    delete_index.append(process * 2 + 1)
+                frist_piece_nan = (data_processes[process][0][0] == 0) # 第一个片子没测到
+                second_piece_nan = (data_processes[process][1][0] == 0) # 第二个片子没测到
+                frist_piece_nonuniform = (uniformity_scores[process * 2] < 0.7) # 第一个片子不均匀
+                second_piece_nonuniform = (uniformity_scores[process * 2 + 1] < 0.7)  # 第二个片子不均匀
+                if frist_piece_nan or second_piece_nan:
+                    # （一组中）有片子不均匀
+                    if frist_piece_nan and second_piece_nan:
+                        # 直接全删
+                        data_processes[process] = np.array([[]])
+                        delete_index.append(process * 2)
+                        delete_index.append(process * 2 + 1)
+                    elif frist_piece_nan:
+                    # if data_processes[process][0][0] == 0:
+                        data_processes[process] = data_processes[process][1].reshape((1, length_of_ws))
+                        delete_index.append(process * 2)
+                    # elif data_processes[process][1][0]==0:
+                    elif second_piece_nan:
+                        data_processes[process] = data_processes[process][0].reshape((1, length_of_ws))
+                        delete_index.append(process * 2 + 1)
+
                 # 不够均匀的也删掉
-                elif uniformity_scores[process * 2] < 0.7:
-                    # data_processes[process][0]==0
-                    data_processes[process] = data_processes[process][1].reshape((1, length_of_ws))
-                    delete_index.append(process * 2)
-                elif uniformity_scores[process * 2 + 1] < 0.7:
-                    # data_processes[process][1]==0
-                    data_processes[process] = data_processes[process][0].reshape((1, length_of_ws))
-                    delete_index.append(process * 2 + 1)
+                # if uniformity_scores[process * 2] < 0.7 or uniformity_scores[process * 2] < 0.7:
+                if frist_piece_nonuniform or second_piece_nonuniform:
+                    # 先讨论两个都是不均匀的
+                    if frist_piece_nonuniform and second_piece_nonuniform:
+                        # 用均值代替，删去后面那个值
+                        data_processes[process] = (np.mean(
+                                                [data_processes[process][0], data_processes[process][1]],
+                                                    axis=0)
+                                                    .reshape(1, length_of_ws))
+                        delete_index.append(process * 2)
+                    elif frist_piece_nonuniform:
+                    # elif uniformity_scores[process * 2] < 0.7:
+                        data_processes[process] = data_processes[process][1].reshape((1, length_of_ws))
+                        delete_index.append(process * 2)
+                    elif second_piece_nonuniform:
+                    # elif uniformity_scores[process * 2 + 1] < 0.7:
+                        # data_processes[process][1]==0
+                        data_processes[process] = data_processes[process][0].reshape((1, length_of_ws))
+                        delete_index.append(process * 2 + 1)
             else:
                 # 一个片子，如果不够均匀就直接删去
                 if uniformity_scores[process] < 0.7:
@@ -135,7 +164,6 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
         if piece_each_process == 1:
             # 只做了一个片子的时候要单独删
             data_processes = np.delete(np.array(data_processes), delete_index,axis=0)
-
 
         # 剩下的做一个片子和两个片子是一样的
         uniformity_scores_cleaned = np.delete(uniformity_scores, delete_index)
@@ -343,7 +371,7 @@ def analyze_spectral_uniformity(file_path, piece_each_process: int, show_plots=T
         result_df = pd.DataFrame(representative_spectrum,
                                  columns=wavelengths,
                                  index=indexs)
-        result_df.to_csv('代表性光谱.csv')
+        result_df.to_csv(save_path)
 
         # 保存均匀性分数
         uniformity_df = pd.DataFrame({

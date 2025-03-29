@@ -53,6 +53,7 @@ def guassFitData(guass_number,
         return R2
 
     if file_path[-3:] != "csv":
+        print(file_path)
         # 要求文件必须为csv格式，保证读取稳定性
         # 也可以加一个处理代码：判断文件类型，然后用openxyl或者pd读取，自动另存为csv也可
         raise TypeError("文件必须为csv格式，可以用excel将文件另存为csv格式后重新输入")
@@ -221,6 +222,6 @@ if __name__ == "__main__":
     # guassFitData(2, '第一轮数据-PL-处理成完.csv', save_params_path="拟合参数try.csv")
     # guassFitData(2, "第二轮的数据-PL(修正后).csv", save_params_path="拟合参数第二轮.csv", save_and_view_training_path="image")
     guassFitData(2,
-                 "代表性光谱.csv",
+                 "各片代表性光谱.csv",
                  save_params_path="拟合参数第一轮.csv",
                  save_and_view_training_path="image")

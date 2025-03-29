@@ -6,9 +6,11 @@ from sklearn.preprocessing import StandardScaler
 
 def bayesian_optimization_and_suggest(filepath,
                                       savepath,
+                                      target_params="最大峰高",
                                       kind='ucb',
                                       kappa=10,
-                                      n_points=5):
+                                      n_points=5
+                                      ):
     """
     贝叶斯优化参数推荐函数
 
@@ -39,7 +41,7 @@ def bayesian_optimization_and_suggest(filepath,
                 "温度/°C": int(row['温度/°C']),
                 "退火时间/min": int(row['退火时间/min'])
             },
-            "target": float(row['标准化峰高'])
+            "target": float(row[target_params])
         })
 
     # 参数边界和步长配置
@@ -127,9 +129,10 @@ def bayesian_optimization_and_suggest(filepath,
 if __name__=="__main__":
     # 使用示例
     bayesian_optimization_and_suggest(
-        filepath='贝叶斯优化/光谱特征提取/initial_data_with_features.xlsx',
-        savepath='贝叶斯优化/光谱特征提取/BO_Round1.xlsx',
+        filepath='initial_data_with_features.xlsx',
+        savepath='BO_Round1.xlsx',
         kind='ucb',
         kappa=10,
-        n_points=25
+        n_points=25,
+
     )
