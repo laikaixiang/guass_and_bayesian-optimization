@@ -32,17 +32,19 @@ def bayesian_optimization_and_suggest(filepath,
     # 构建历史数据格式
     historical_data = []
     for _, row in df.iterrows():
-        historical_data.append({
-            "params": {
-                "前驱体体积/ul": int(row['前驱体体积/ul']),
-                "旋涂速度/rpm": int(row['旋涂速度/rpm']),
-                "旋涂时间/s": int(row['旋涂时间/s']),
-                "旋涂加速度": int(row['旋涂加速度']),
-                "温度/°C": int(row['温度/°C']),
-                "退火时间/min": int(row['退火时间/min'])
-            },
-            "target": float(row[target_params])
-        })
+        if pd.notnull(row[target_params]):
+            # 如果没有删除的：
+            historical_data.append({
+                "params": {
+                    "前驱体体积/ul": int(row['前驱体体积/ul']),
+                    "旋涂速度/rpm": int(row['旋涂速度/rpm']),
+                    "旋涂时间/s": int(row['旋涂时间/s']),
+                    "旋涂加速度": int(row['旋涂加速度']),
+                    "温度/°C": int(row['温度/°C']),
+                    "退火时间/min": int(row['退火时间/min'])
+                },
+                "target": float(row[target_params])
+            })
 
     # 参数边界和步长配置
     param_config = {

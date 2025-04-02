@@ -10,7 +10,7 @@ if __name__ == "__main__":
 
     # 输入文件位置
     spectrum_path_origin = 'data/第一轮的数据-PL(统一前标).csv' # 输入的光谱文件数据（原始）
-    process_data_path = "data/initial_data.xlsx" # 输入的工艺参数位置
+    process_data_path = "data/initial_data_R2.xlsx"  # 输入的工艺参数位置
 
     # 中间数据的存储位置
     spectrum_path_processed = "各片代表性光谱.csv" # 存各片光谱
@@ -22,9 +22,9 @@ if __name__ == "__main__":
 
     # 主函数流程
     # 1.数据处理
-    processing_datas = analyze_spectral_uniformity(file_path = 'data/第一轮的数据-PL(统一前标).csv',
+    processing_datas = analyze_spectral_uniformity(file_path=spectrum_path_origin,
                                                    piece_each_process=piece_each_process,
-                                                   show_plots=False,
+                                                   show_plots=True,
                                                    save_results=True,
                                                    save_path=spectrum_path_processed
                                                    )
