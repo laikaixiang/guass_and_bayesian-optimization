@@ -9,7 +9,8 @@ def bayesian_optimization_and_suggest(filepath,
                                       target_params="最大峰高",
                                       kind='ucb',
                                       kappa=10,
-                                      n_points=5
+                                      n_points=5,
+                                      param_config=None
                                       ):
     """
     贝叶斯优化参数推荐函数
@@ -17,44 +18,72 @@ def bayesian_optimization_and_suggest(filepath,
     参数:
     filepath (str): 历史数据文件路径（Excel格式）
     savepath (str): 参数保存路径（Excel格式）
+    target_params (str): 目标参数列名
     kind (str): Utility函数类型，默认'ucb'
     kappa (float): 探索系数，默认10
     n_points (int): 建议点数量，默认5
+    param_config (dict): 参数配置，格式为 {
+        '参数名': {'bounds': (min, max), 'step': step, 'dtype': 'int'/'float'}
+    }
+
+    返回:
+    None
+
+    异常:
+    ValueError: 当数据文件缺少必要的列时抛出
     """
 
     # 加载数据
     df = pd.read_excel(filepath)
 
-    # 数据标准化处理
-    scaler = StandardScaler()
-    df['标准化峰高'] = scaler.fit_transform(df[['最大峰高']])
+    # 默认参数配置
+    # param_config = {
+    #     "前驱体体积/ul": {"bounds": (10, 100), "step": 10},
+    #     "旋涂速度/rpm": {"bounds": (500, 5000), "step": 500},
+    #     "旋涂时间/s": {"bounds": (30, 180), "step": 30},
+    #     "旋涂加速度": {"bounds": (500, 5000), "step": 500},
+    #     "温度/°C": {"bounds": (80, 160), "step": 20},
+    #     "退火时间/min": {"bounds": (5, 60), "step": 5}
+    # }
+    default_param_config = {
+        "前驱体体积/ul": {"bounds": (10, 60), "step": 5, "dtype": "int"},
+        "旋涂速度/rpm": {"bounds": (1000, 5000), "step": 200, "dtype": "int"},
+        "旋涂时间/s": {"bounds": (10, 60), "step": 5, "dtype": "int"},
+        "旋涂加速度": {"bounds": (1000, 5000), "step": 200, "dtype": "int"},
+        "退火时间/min": {"bounds": (1, 10), "step": 1, "dtype": "int"},
+        "添加剂": {"bounds": (1, 12), "step": 1, "dtype": "int"},
+        "添加量%": {"bounds": (5, 20), "step": 5, "dtype": "int"}
+    }
+
+    # 使用用户提供的参数配置或默认配置
+    param_config = param_config or default_param_config
+
+    # 检查目标参数列是否存在
+    if target_params not in df.columns:
+        raise ValueError(f"目标参数列 '{target_params}' 不存在于数据文件中")
+
+    # 检查所有参数列是否存在
+    missing_columns = [param for param in param_config.keys() if param not in df.columns]
+    if missing_columns:
+        raise ValueError(f"数据文件缺少以下参数列: {', '.join(missing_columns)}")
+
+    # 数据标准化处理（如果目标参数存在）
+    if target_params in df.columns and pd.notnull(df[target_params]).any():
+        scaler = StandardScaler()
+        df['标准化目标'] = scaler.fit_transform(df[[target_params]])
 
     # 构建历史数据格式
     historical_data = []
     for _, row in df.iterrows():
         if pd.notnull(row[target_params]):
-            # 如果没有删除的：
+            params = {}
+            for param_name in param_config.keys():
+                params[param_name] = row[param_name]
+
             historical_data.append({
-                "params": {
-                    "前驱体体积/ul": int(row['前驱体体积/ul']),
-                    "旋涂速度/rpm": int(row['旋涂速度/rpm']),
-                    "旋涂时间/s": int(row['旋涂时间/s']),
-                    "旋涂加速度": int(row['旋涂加速度']),
-                    "温度/°C": int(row['温度/°C']),
-                    "退火时间/min": int(row['退火时间/min'])
-                },
+                "params": params,
                 "target": float(row[target_params])
             })
-
-    # 参数边界和步长配置
-    param_config = {
-        "前驱体体积/ul": {"bounds": (10, 100), "step": 10},
-        "旋涂速度/rpm": {"bounds": (500, 5000), "step": 500},
-        "旋涂时间/s": {"bounds": (30, 180), "step": 30},
-        "旋涂加速度": {"bounds": (500, 5000), "step": 500},
-        "温度/°C": {"bounds": (80, 160), "step": 20},
-        "退火时间/min": {"bounds": (5, 60), "step": 5}
-    }
 
     # 初始化优化器
     optimizer = BayesianOptimization(
@@ -89,8 +118,19 @@ def bayesian_optimization_and_suggest(filepath,
                 for param, config in param_config.items():
                     min_val, max_val = config["bounds"]
                     step = config["step"]
+                    dtype = config.get("dtype", "int")
+
+                    # 对齐到最近的步长倍数
                     aligned_value = round(raw_params[param] / step) * step
-                    aligned_params[param] = int(np.clip(aligned_value, min_val, max_val))
+
+                    # 确保在边界内
+                    aligned_value = np.clip(aligned_value, min_val, max_val)
+
+                    # 转换为指定类型
+                    if dtype == "int":
+                        aligned_params[param] = int(aligned_value)
+                    else:
+                        aligned_params[param] = float(aligned_value)
 
                 # 检查唯一性
                 param_tuple = tuple(aligned_params.values())
@@ -111,30 +151,23 @@ def bayesian_optimization_and_suggest(filepath,
     start_num = df['实验序号'].max() + 1 if '实验序号' in df.columns else 1
     df_suggestions.insert(0, '实验序号', range(start_num, start_num + len(df_suggestions)))
 
-    # 列顺序调整
-    column_order = [
-        '实验序号',
-        '前驱体体积/ul',
-        '旋涂速度/rpm',
-        '旋涂时间/s',
-        '旋涂加速度',
-        '温度/°C',
-        '退火时间/min'
-    ]
-    df_suggestions = df_suggestions[column_order]
-
     # 保存结果
     df_suggestions.to_excel(savepath, index=False, engine='openpyxl')
     print(f"优化参数已保存至：{savepath}")
 
 
-if __name__=="__main__":
-    # 使用示例
-    bayesian_optimization_and_suggest(
-        filepath='initial_data_with_features.xlsx',
-        savepath='BO_Round1.xlsx',
-        kind='ucb',
-        kappa=10,
-        n_points=25,
+if __name__ == "__main__":
+    try:
+        # 使用示例
+        # 使用示例
+        bayesian_optimization_and_suggest(
+            filepath='training_data/initial_data_with_features.xlsx',
+            savepath='newProcesses/BO_Round1.xlsx',
+            target_params="最大峰高",
+            kind='ucb',
+            kappa=10,
+            n_points=20,
 
-    )
+        )
+    except ValueError as e:
+        print(f"错误: {e}")

@@ -24,6 +24,7 @@ def guassFitData(guass_number,
             # 1.每个光谱图的图像以及拟合函数曲线, 保存到此输入的文件夹中
             # 2.每个光谱图像的R^2, 保存到此输入的文件夹中的folder_path+"R2.csv"文件中
     # 返回值：为pd.DataFrame类型数据，保存所有的参数
+    maxepoch = 50
 
     def gaussian_sum(x, *params):
         # params应该是guass_number组（均值，标准差，系数）
@@ -136,7 +137,18 @@ def guassFitData(guass_number,
 
     for index in range(ydata.shape[1]):
         R2 = 0
+        epoch = 0
         while R2<0.8:
+            if epoch>maxepoch:
+                # 如果超出了时间约束
+                popt = np.zeros((guass_number * 3)) # 先修改popt为全0
+                # 输出错误报告
+                print("拟合错误（谱线No.{}）：由于未找到拟合的最优解，或者该谱线没有出峰，故删除，拟合数据记为全0".format(ytitle[index][0]))
+                break
+            else:
+                # 如果没有，记一轮约束
+                epoch += 1
+
             # 初始参数随机生成
             initial_params = get_params(ydata[:,index])
 
@@ -189,7 +201,7 @@ def guassFitData(guass_number,
                 plt.title('Least Squares Fit of Gaussian Sum of Process No.' + ytitle[index][0])
                 plt.legend()
                 # fig_name = ytitle[index][0] + ".svg"  # str
-                fig_name = str(index) + ".svg"
+                fig_name = str(ytitle[index][0]) + ".svg"
                 plt.savefig(os.path.join(folder_path, fig_name), dpi=300)
                 # plt.show()
                 plt.close()
@@ -201,7 +213,8 @@ def guassFitData(guass_number,
     # 保存参数
     finial_params = finial_params.reshape(len(finial_params)//(guass_number * 3), guass_number * 3)
     # finial_params = np.concatenate((ytitle, finial_params), axis = 1)
-    columns_name = ["均值1", "标准差1", "峰高1", "均值2", "标准差2", "峰高2"]
+    # columns_name = ["均值1", "标准差1", "峰高1", "均值2", "标准差2", "峰高2"]
+    columns_name = [f"{name}{i}" for i in range(1, guass_number + 1) for name in ["均值", "标准差", "峰高"]]
     finial_params = pd.DataFrame(finial_params, columns=columns_name, index = ytitle.reshape(-1))
 
 
